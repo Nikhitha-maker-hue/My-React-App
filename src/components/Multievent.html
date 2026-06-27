@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Multi-Event Countdown</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    h1 { text-align: center; }
+    form { background: #fff; padding: 20px; margin-bottom: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    label { display: block; margin-top: 10px; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 15px; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    .event-card { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; position: relative; border-left: 5px solid #007bff; }
+    .countdown { font-weight: bold; font-size: 18px; }
+    .actions { margin-top: 10px; }
+    .actions button { margin-right: 10px; background-color: #dc3545; }
+    .edit-btn { background-color: #ffc107; }
+    .toast { background: #28a745; color: white; padding: 10px; border-radius: 5px; position: fixed; bottom: 20px; right: 20px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>Dynamic Multi-Event Countdown</h1>
+  <form id="eventForm">
+    <label>Event Title* <input type="text" id="title" required></label>
+    <label>Description <textarea id="description"></textarea></label>
+    <label>Date & Time* <input type="datetime-local" id="datetime" required></label>
+    <label>Email for Reminder <input type="email" id="email"></label>
+    <label>Category
+      <select id="category">
+        <option>Birthday</option>
+        <option>Meeting</option>
+        <option>Holiday</option>
+        <option>Custom</option>
+      </select>
+    </label>
+    <button type="submit">Add Event</button>
+  </form>
+
+  <div id="eventList"></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const form = document.getElementById('eventForm');
+    const eventList = document.getElementById('eventList');
+    const toast = document.getElementById('toast');
+    let events = JSON.parse(localStorage.getItem('events')) || [];
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
+
+    function saveEvents() {
+      localStorage.setItem('events', JSON.stringify(events));
+    }
+
+    function renderEvents() {
+      eventList.innerHTML = '';
+      events.forEach((event, index) => {
+        const card = document.createElement('div');
+        card.className = 'event-card';
+        card.style.borderLeftColor = getCategoryColor(event.category);
+
+        const now = new Date();
+        const eventDate = new Date(event.datetime);
+        const diff = eventDate - now;
+
+        const countdownText = diff <= 0 ? `🎉 ${event.title} is happening now!` : getCountdownString(diff);
+
+        card.innerHTML = `
+          <h3>${event.title}</h3>
+          <p>${event.description || ''}</p>
+          <p><strong>Category:</strong> ${event.category}</p>
+          <p class="countdown">${countdownText}</p>
+          <p>${event.email ? `Reminder set to: ${event.email}` : 'No reminder set'}</p>
+          <div class="actions">
+            <button onclick="deleteEvent(${index})">Delete</button>
+            <button class="edit-btn" onclick="editEvent(${index})">Edit</button>
+          </div>
+        `;
+        eventList.appendChild(card);
+
+        // Simulate email reminder 1 day before
+        const oneDay = 24 * 60 * 60 * 1000;
+        if (event.email && diff <= oneDay && !event.reminded && diff > 0) {
+          console.log(`Reminder: '${event.title}' is happening tomorrow. Email sent to: ${event.email}`);
+          showToast(`Reminder email simulated for: ${event.title}`);
+          event.reminded = true;
+          saveEvents();
+        }
+      });
+    }
+
+    function getCountdownString(ms) {
+      const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((ms / (1000 * 60)) % 60);
+      const seconds = Math.floor((ms / 1000) % 60);
+      return `${days} Days ${hours.toString().padStart(2, '0')}:${minutes
+        .toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function getCategoryColor(cat) {
+      switch (cat) {
+        case 'Birthday': return '#f39c12';
+        case 'Meeting': return '#2980b9';
+        case 'Holiday': return '#27ae60';
+        default: return '#7f8c8d';
+      }
+    }
+
+    function deleteEvent(index) {
+      if (confirm('Are you sure you want to delete this event?')) {
+        events.splice(index, 1);
+        saveEvents();
+        renderEvents();
+      }
+    }
+
+    function editEvent(index) {
+      const event = events[index];
+      document.getElementById('title').value = event.title;
+      document.getElementById('description').value = event.description;
+      document.getElementById('datetime').value = event.datetime;
+      document.getElementById('email').value = event.email;
+      document.getElementById('category').value = event.category;
+      events.splice(index, 1); // Remove and re-add on form submit
+      saveEvents();
+      renderEvents();
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const datetime = document.getElementById('datetime').value;
+      const email = document.getElementById('email').value.trim();
+      const category = document.getElementById('category').value;
+
+      if (!title || !datetime || new Date(datetime) <= new Date()) {
+        alert('Please enter a valid title and future date.');
+        return;
+      }
+
+      events.push({ title, description, datetime, email, category, reminded: false });
+      saveEvents();
+      form.reset();
+      renderEvents();
+    });
+
+    setInterval(renderEvents, 1000);
+    renderEvents();
+  </script>
+</body>
+</html>
